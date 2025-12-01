@@ -1,58 +1,43 @@
+---
+config:
+  layout: fixed
+---
 flowchart TB
-
-    %% ====== USER CHANNELS ======
-    subgraph Channels["User Channels"]
+ subgraph Channels["User Channels"]
         U["User<br>Slack / Teams / Web / Email"]
-    end
-
-    %% ====== API GATEWAY ======
-    U --> GW["API Gateway<br>Auth, Rate Limits, Channel Normalization"]
-
-    %% ====== CORE ORCHESTRATION ======
-    subgraph LangGraph["LangGraph Orchestration Layer"]
+  end
+ subgraph Agents["Agent Nodes"]
+        IA["Intake Agent<br>(Intent Classification)"]
+        KA["Knowledge Agent<br>(RAG over PDFs + Chroma)"]
+        WA["Workflow Agent<br>(MCP Automations)"]
+        EA["Escalation Agent<br>(Human Handoff)"]
+  end
+ subgraph LangGraph["LangGraph Orchestration Layer"]
         ORCH["LangGraph Runtime<br>(Graph State, Routing, Decision Nodes)"]
-
-        subgraph Agents["Agent Nodes"]
-            IA["Intake Agent<br>(Intent Classification)"]
-            KA["Knowledge Agent<br>(RAG over PDFs + Chroma)"]
-            WA["Workflow Agent<br>(MCP Automations)"]
-            EA["Escalation Agent<br>(Human Handoff)"]
-        end
-
+        Agents
         CTX["(GraphState Store<br>Intent, Entities, RAG Docs,<br>Actions, Tool Results)"]
-    end
-
-    GW --> ORCH
-    ORCH <--> CTX
-
-    %% ====== RAG STACK ======
-    subgraph RAG["RAG Layer"]
+  end
+ subgraph RAG["RAG Layer"]
         PDFS["Uploaded PDF Documents<br>Runbooks, Policies, How-Tos"]
         SPLIT["Text Splitter<br>Chunking"]
         EMB["OpenAI Embeddings"]
         CHR["Chroma Vector DB"]
-    end
-
-    KA --> EMB
-    EMB --> CHR
-    CHR --> KA
-    PDFS --> SPLIT --> EMB
-
-    %% ====== MCP TOOLING ======
-    subgraph MCP["Model Context Protocol Tool Layer"]
+  end
+ subgraph MCP["Model Context Protocol Tool Layer"]
         MCPClient["MCP Client<br>(Pinecone Tools / Other Tools)"]
         IDP["IDP Tools<br>reset_password(), unlock_account()"]
         LOGS["Logging Tools<br>get_recent_logs()"]
         ITSM["ITSM Tools<br>create_ticket(), create_incident()"]
-    end
-
+  end
+    U --> GW["API Gateway<br>Auth, Rate Limits, Channel Normalization"]
+    GW --> ORCH
+    ORCH <--> CTX
+    KA --> EMB
+    EMB --> CHR
+    CHR --> KA
+    PDFS --> SPLIT
+    SPLIT --> EMB
     WA --> MCPClient
     EA --> MCPClient
-
-    MCPClient --> IDP
-    MCPClient --> LOGS
-    MCPClient --> ITSM
-
-    %% ====== HUMAN HANDOFF ======
-    HUM["Human IT Support Team"]
-    ITSM --> HUM
+    MCPClient --> IDP & LOGS & ITSM
+    ITSM --> HUM["Human IT Support Team"]
