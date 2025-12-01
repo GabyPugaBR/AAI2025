@@ -1,0 +1,48 @@
+sequenceDiagram
+    autonumber
+
+    participant User
+    participant Channel as User Channel
+    participant GW as API Gateway
+    participant ORCH as LangGraph Runtime
+    participant IA as Intake Agent Node
+    participant KA as Knowledge Agent (RAG)
+    participant WA as Workflow Agent (MCP)
+    participant EA as Escalation Agent
+    participant MCP as MCP Tools
+    participant ITSM as ITSM System
+    participant Human as Human IT
+
+    User->>Channel: Sends request (e.g., "Reset my VPN password" or "VPN keeps dropping")
+    Channel->>GW: Normalize + forward message
+    GW->>ORCH: Deliver ChatEvent + session context
+
+    %% Intake
+    ORCH->>IA: Determine intent, entities, severity
+    IA-->>ORCH: intent=request_type, system, confidence, severity
+
+    %% Branching
+    alt Informational Query
+        ORCH->>KA: Perform RAG search via PDFs + Chroma
+        KA->>KA: Retrieve chunks, build context prompt
+        KA-->>ORCH: Provide answer + citations
+        ORCH-->>Channel: Final Answer (no automation)
+    else Action or Incident
+        ORCH->>WA: Execute workflow (e.g., reset password, get logs)
+        WA->>MCP: Call tools (idp.reset_password, logs.get_recent)
+        MCP-->>WA: Tool responses (success/failure)
+        WA-->>ORCH: Workflow completed or partially failed
+
+        %% If failure/uncertain -> escalate
+        alt Workflow Succeeded
+            ORCH-->>Channel: Output completion summary + ticket ID
+        else Requires Escalation
+            ORCH->>EA: Summarize issue + diagnostics
+            EA->>MCP: itsm.create_incident()
+            MCP->>ITSM: Create incident with context
+            ITSM-->>EA: Ticket ID
+            EA-->>ORCH: Escalation summary
+            ORCH-->>Channel: "Escalated to IT: Ticket #12345"
+            ITSM-->>Human: Assign incident + AI context
+        end
+    end
